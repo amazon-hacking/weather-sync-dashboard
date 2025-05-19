@@ -1,0 +1,3 @@
+# .gitignore
+.venv/
+application/.streamlit/secrets.toml
