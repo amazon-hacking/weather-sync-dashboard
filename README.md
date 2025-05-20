@@ -69,7 +69,8 @@ Pasta dedicada a **documentação extra e utilitários**.
 4. Execute a aplicação:
 
    ```bash
-   streamlit run application/app.py
+   cd application/
+   streamlit run app.py
    ```
 
 ---
