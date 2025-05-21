@@ -6,7 +6,7 @@ Este repositório contém uma aplicação construída com **Streamlit**, voltada
 
 ## 📁 Estrutura do Projeto
 
-### `application/`
+### `./application/`
 
 Contém o núcleo da aplicação.
 
@@ -28,7 +28,7 @@ Contém o núcleo da aplicação.
 Arquivo principal da aplicação, responsável por carregar os **componentes visuais**.
 
 * Todos os **componentes desenvolvidos devem ser adicionados aqui**.
-* Cada novo componente precisa estar **comentado claramente** e **acompanhado de três corações verdes (💚💚💚)** para facilitar a identificação.
+* Cada novo componente precisa estar **comentado claramente** e **acompanhado de dois corações verdes (💚💚)** para facilitar a identificação.
 
 #### 🧪 `test.py`
 
