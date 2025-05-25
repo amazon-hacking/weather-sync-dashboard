@@ -11,5 +11,61 @@ group by
 	pla.name, pol.name
 order by pol.name, pla.name
 
+CREATE VIEW gold.media_temperatura_por_bairro_e_dia AS
+	SELECT
+	    p.name as bairro,
+	    DATE_TRUNC('day', wd.created_at) AS data,
+	    ROUND(AVG(wd.temperature), 2) AS temperatura_media
+	FROM
+	    gold.weather_data AS wd
+	JOIN
+		gold.places AS p ON p.id = wd.place_id
+	GROUP BY
+	    bairro, data
+	ORDER BY
+	    bairro ASC, data ASC
+
+CREATE VIEW gold.media_humidade_por_bairro_e_dia AS
+	SELECT
+	    p.name as bairro,
+	    DATE_TRUNC('day', wd.created_at) AS data,
+	    ROUND(AVG(wd.humidity), 2) AS humidade_media
+	FROM
+	    gold.weather_data AS wd
+	JOIN
+		gold.places AS p ON p.id = wd.place_id
+	GROUP BY
+	    bairro, data
+	ORDER BY
+	    bairro ASC, data ASC
+
+CREATE VIEW gold.media_temperatura_por_bairro_e_mes AS
+	SELECT
+	    p.name AS bairro,
+	    DATE_TRUNC('month', wd.created_at) AS data,
+	    ROUND(AVG(wd.temperature), 2) AS temperatura_media
+	FROM
+	    gold.weather_data AS wd
+	JOIN
+		gold.places AS p ON p.id = wd.place_id
+	GROUP BY
+	    bairro, data
+	ORDER BY
+	    bairro ASC, data ASC
+
+CREATE VIEW gold.media_humidade_por_bairro_e_mes AS
+	SELECT
+	    p.name AS bairro,
+	    DATE_TRUNC('month', wd.created_at) AS data,
+	    ROUND(AVG(wd.humidity), 2) AS humidade_media
+	FROM
+	    gold.weather_data AS wd
+	JOIN
+		gold.places AS p ON p.id = wd.place_id
+	GROUP BY
+	    bairro, data
+	ORDER BY
+	    bairro ASC, data ASC
+
 -- Teste a view
 select * from gold.poluentes_por_bairro
