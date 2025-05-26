@@ -2,7 +2,6 @@
 
 import streamlit as st
 import pandas as pd
-import pandasql as ps
 from sqlalchemy import create_engine
 import altair as alt
 
@@ -28,7 +27,7 @@ poluente_escolhido = st.radio(
 )
 
 # Query filtrada direto no banco para o poluente escolhido
-query_poluentes_por_bairro = f"""
+query_poluentes_por_bairro = """
     SELECT bairro, media_valor
     FROM gold.poluentes_por_bairro
     WHERE poluente = %s
@@ -55,39 +54,66 @@ st.altair_chart(chart, use_container_width=True)
 
 # TEMPERATURA E HUMIDADE MEDIAS POR PERÍODO E BAIRRO 💚💚
 
+# Inputs do usuário
 data_ini = st.date_input("Data inicial")
 data_fim = st.date_input("Data final")
-bairro = st.selectbox("Selecione o bairro", options=pd.read_sql("SELECT DISTINCT bairro FROM gold.media_humidade_por_bairro_e_dia", engine))
-params = (bairro, data_ini, data_fim)
+bairros_disponiveis = pd.read_sql("SELECT DISTINCT bairro FROM gold.media_humidade_por_bairro_e_dia", engine)
+bairros = st.multiselect("Selecione os bairros", options=bairros_disponiveis['bairro'].tolist())
+
+# Parâmetros para Queries de Temp. e Umi.
+params = {
+        "data_ini": data_ini,
+        "data_fim": data_fim,
+        "bairros": bairros,
+        }
 
 query_temperatura_periodo = """
-    SELECT * FROM gold.media_temperatura_por_bairro_e_dia
-    WHERE bairro = %s AND data BETWEEN %s AND %s
-    ORDER BY data;
-"""
+        SELECT data, bairro, temperatura_media
+        FROM gold.media_temperatura_por_bairro_e_dia
+        WHERE data BETWEEN %(data_ini)s AND %(data_fim)s
+          AND bairro = ANY(%(bairros)s)
+        ORDER BY data, bairro
+    """
 
 query_umidade_periodo = """
-    SELECT * FROM gold.media_humidade_por_bairro_e_dia
-    WHERE bairro = %s AND data BETWEEN %s AND %s
-    ORDER BY data;
+    SELECT data, bairro, humidade_media
+    FROM gold.media_humidade_por_bairro_e_dia
+    WHERE data BETWEEN %(data_ini)s AND %(data_fim)s
+        AND bairro = ANY(%(bairros)s)
+    ORDER BY data, bairro
 """
 
+# Faz as consultas no banco
+consulta_temp = pd.read_sql(query_temperatura_periodo, engine, params=params)
+consulta_umidade = pd.read_sql(query_umidade_periodo, engine, params=params)
+
+# Passando as datas para string
+for df in [consulta_temp, consulta_umidade]:
+    if pd.api.types.is_datetime64_any_dtype(df["data"]):
+        df["data"] = df["data"].dt.strftime('%d/%m/%Y')
+    df["data"] = df["data"].astype(str)
+
+# Garantindo que as datas estão no formato correto
+def checagem_data(consulta):
+    if pd.api.types.is_datetime64_any_dtype(consulta["data"]): # Checa se é datetime
+        consulta["data"] = consulta["data"].dt.strftime('%d/%m/%Y') # Converte a data para formato brasileiro
+    consulta["data"] = consulta["data"].astype(str)
+    
 # TEMPERATURA:
 
-consulta_temp = pd.read_sql(query_temperatura_periodo, engine, params=params)
-if pd.api.types.is_datetime64_any_dtype(consulta_temp["data"]): # Checa se é datetime
-    consulta_temp["data"] = consulta_temp["data"].dt.strftime('%d/%m/%Y') # Converte a data para formato brasileiro
-consulta_temp["data"] = consulta_temp["data"].astype(str)
+checagem_data(consulta_temp)
 
 if not consulta_temp.empty:
     chart = alt.Chart(consulta_temp).mark_bar().encode(
         x=alt.X("data:N", title="Data"), #O :N garante que o eixo X seja tratado como NOMINAL
         y=alt.Y("temperatura_media:Q", title="Temperatura Média"), #O :Q garante que o eixo Y seja tratado como quantitativo
-        tooltip=["data", "temperatura_media"]
+        color="bairro:N",
+        column=alt.Column("bairro:N", title="Bairro", spacing=10),
+        tooltip=["data", "bairro", "temperatura_media"]
     ).properties(
         width=700,
         height=400,
-        title=f"Temperatura média diária - {bairro}"
+        title="Temperatura média diária por bairro"
     )
 
     st.altair_chart(chart, use_container_width=True) #container_width=True garante responsividade
@@ -96,20 +122,19 @@ else:
     
 # UMIDADE:
 
-consulta_umidade = pd.read_sql(query_umidade_periodo, engine, params=params)
-if pd.api.types.is_datetime64_any_dtype(consulta_umidade["data"]): # Checa se é datetime
-    consulta_umidade["data"] = consulta_umidade["data"].dt.strftime('%d/%m/%Y') # Converte a data para formato brasileiro
-consulta_umidade["data"] = consulta_umidade["data"].astype(str)
+checagem_data(consulta_umidade)
 
 if not consulta_umidade.empty:
     chart = alt.Chart(consulta_umidade).mark_bar().encode(
         x=alt.X("data:N", title="Data"), #O :N garante que o eixo X seja tratado como NOMINAL
         y=alt.Y("humidade_media:Q", title="Umidade Média"), #O :Q garante que o eixo Y seja tratado como quantitativo
-        tooltip=["data", "humidade_media"]
+        color="bairro:N",
+        column=alt.Column("bairro:N", title="Bairro", spacing=10),
+        tooltip=["data", "bairro", "humidade_media"]
     ).properties(
         width=700,
         height=400,
-        title=f"Umidade média diária - {bairro}"
+        title="Umidade média diária por bairro"
     )
 
     st.altair_chart(chart, use_container_width=True) #container_width=True garante responsividade
