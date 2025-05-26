@@ -3,87 +3,115 @@
 import streamlit as st
 import pandas as pd
 import pandasql as ps
+from sqlalchemy import create_engine
+import altair as alt
 
-# Conexão com banco
-conn = st.connection("tembo_db")
-df = conn.query("select * from gold.poluentes_por_bairro")
+# Conexão para criar uma engine do SQLalchemy
+db_config = st.secrets["tembo_db"]
 
-# -------------------------- QUERIES -------------------------- 
-# CONSULTA POLUENTES
+username = db_config["username"]
+password = db_config["password"]
+host = db_config["host"]
+port = db_config["port"]
+database = db_config["database"]
 
-# Botões de seleção para realizar a query logo abaixo
+engine = create_engine(f"postgresql://{username}:{password}@{host}/{database}")
+
+# MÉDIA DE POLUENTES POR BAIRRO NO PERÍODO INTERIRO 💚💚
+
+query_poluentes_unicos = "SELECT DISTINCT poluente FROM gold.poluentes_por_bairro"
+poluentes = pd.read_sql(query_poluentes_unicos, engine)
+
 poluente_escolhido = st.radio(
-    "Qual o poluente que será anlisado? (Clique em uma opção)",
-    ["Dióxido de enxofre", "Dióxido de nitrogênio", "Monóxido de carbono", "Ozônio", "Partículas em suspensão finas (<2,5μm)", "Partículas em suspensão inaláveis (<10μm)"],
-    index=None,
+    "Qual o poluente que será analisado? (Clique em uma opção)",
+    poluentes["poluente"].tolist(),
 )
 
-query = f"""
-    SELECT 
-        bairro, media_valor
-    FROM df
-    WHERE poluente = '{poluente_escolhido}'
+# Query filtrada direto no banco para o poluente escolhido
+query_poluentes_por_bairro = f"""
+    SELECT bairro, media_valor
+    FROM gold.poluentes_por_bairro
+    WHERE poluente = %s
 """
-df_filtrado = ps.sqldf(query, locals())
 
-# TEMPERATURA E HUMIDADE MEDIAS DIARIAS E MENSAIS POR BAIRRO 💚💚
+df_filtrado = pd.read_sql(query_poluentes_por_bairro, engine, params=(poluente_escolhido,))
 
-query = 'SELECT * FROM gold.media_temperatura_por_bairro_e_dia;'
-df_temperatura_por_bairro_e_dia = conn.query(query)
-query = 'SELECT * FROM gold.media_humidade_por_bairro_e_dia;'
-df_humidade_por_bairro_e_dia = conn.query(query)
-query = 'SELECT bairro, data as mês, temperatura_media FROM gold.media_temperatura_por_bairro_e_mes;'
-df_temperatura_por_bairro_e_mes = conn.query(query)
-query = 'SELECT bairro, data as mês, humidade_media FROM gold.media_humidade_por_bairro_e_mes;'
-df_humidade_por_bairro_e_mes = conn.query(query)
+chart = (
+    alt.Chart(df_filtrado)
+    .mark_bar(color="#4caf50")
+    .encode(
+        y=alt.Y('bairro:N', sort='-x', title='Bairro'),  
+        x=alt.X('media_valor:Q', title='Média de Poluentes'),  
+        tooltip=['bairro', 'media_valor']
+    )
+    .properties(
+        title=f"Média de {poluente_escolhido} por bairro",
+        width=700,
+        height=400
+    )
+)
 
-df_temperatura_por_bairro_e_mes['mês'] = pd.to_datetime(df_temperatura_por_bairro_e_mes['mês'])
-df_humidade_por_bairro_e_mes['mês'] = pd.to_datetime(df_humidade_por_bairro_e_mes['mês'])
-df_temperatura_por_bairro_e_mes['mês'] = df_temperatura_por_bairro_e_mes['mês'].dt.month
-df_humidade_por_bairro_e_mes['mês'] = df_humidade_por_bairro_e_mes['mês'].dt.month
+st.altair_chart(chart, use_container_width=True)
 
-# -------------------------- GRÁFICOS E TABELAS -------------------------- 
+# TEMPERATURA E HUMIDADE MEDIAS POR PERÍODO E BAIRRO 💚💚
 
-tab1, tab2 = st.tabs(["📊 Gráfico", "📋 Tabela"])
-tab1.area_chart(df_filtrado.set_index("bairro"), color=['#1BF59B'], height=250)
-tab2.dataframe(df_filtrado, height=250, use_container_width=True)
+data_ini = st.date_input("Data inicial")
+data_fim = st.date_input("Data final")
+bairro = st.selectbox("Selecione o bairro", options=pd.read_sql("SELECT DISTINCT bairro FROM gold.media_humidade_por_bairro_e_dia", engine))
+params = (bairro, data_ini, data_fim)
 
-st.title('Temperatura média diária de cada bairro')
+query_temperatura_periodo = """
+    SELECT * FROM gold.media_temperatura_por_bairro_e_dia
+    WHERE bairro = %s AND data BETWEEN %s AND %s
+    ORDER BY data;
+"""
 
-bairros_selecionados_temperatura_dia = []
-for bairro in df_temperatura_por_bairro_e_dia['bairro'].unique():
-    if st.checkbox(bairro, value=True, key=f'temp_dia_{bairro}'):
-        bairros_selecionados_temperatura_dia.append(bairro)
+query_umidade_periodo = """
+    SELECT * FROM gold.media_humidade_por_bairro_e_dia
+    WHERE bairro = %s AND data BETWEEN %s AND %s
+    ORDER BY data;
+"""
 
-df_filtrado_temperatura_dia = df_temperatura_por_bairro_e_dia[df_temperatura_por_bairro_e_dia['bairro'].isin(bairros_selecionados_temperatura_dia)]
-st.line_chart(df_filtrado_temperatura_dia, x='data', y='temperatura_media', color='bairro', x_label='Data', y_label='Temperatura média')
+# TEMPERATURA:
 
-st.title('Humidade média diária de cada bairro')
+consulta_temp = pd.read_sql(query_temperatura_periodo, engine, params=params)
+if pd.api.types.is_datetime64_any_dtype(consulta_temp["data"]): # Checa se é datetime
+    consulta_temp["data"] = consulta_temp["data"].dt.strftime('%d/%m/%Y') # Converte a data para formato brasileiro
+consulta_temp["data"] = consulta_temp["data"].astype(str)
 
-bairros_selecionados_humidade_dia = []
-for bairro in df_humidade_por_bairro_e_dia['bairro'].unique():
-    if st.checkbox(bairro, value=True, key=f'hum_dia_{bairro}'):
-        bairros_selecionados_humidade_dia.append(bairro)
+if not consulta_temp.empty:
+    chart = alt.Chart(consulta_temp).mark_bar().encode(
+        x=alt.X("data:N", title="Data"), #O :N garante que o eixo X seja tratado como NOMINAL
+        y=alt.Y("temperatura_media:Q", title="Temperatura Média"), #O :Q garante que o eixo Y seja tratado como quantitativo
+        tooltip=["data", "temperatura_media"]
+    ).properties(
+        width=700,
+        height=400,
+        title=f"Temperatura média diária - {bairro}"
+    )
 
-df_filtrado_humidade_dia = df_humidade_por_bairro_e_dia[df_humidade_por_bairro_e_dia['bairro'].isin(bairros_selecionados_humidade_dia)]
-st.line_chart(df_filtrado_humidade_dia, x='data', y='humidade_media', color='bairro', x_label='Data', y_label='Humidade média')
+    st.altair_chart(chart, use_container_width=True) #container_width=True garante responsividade
+else:
+    st.warning("Nenhum dado encontrado para o período e bairro selecionados.")
+    
+# UMIDADE:
 
-st.title('Temperatura média por mês de cada bairro')
+consulta_umidade = pd.read_sql(query_umidade_periodo, engine, params=params)
+if pd.api.types.is_datetime64_any_dtype(consulta_umidade["data"]): # Checa se é datetime
+    consulta_umidade["data"] = consulta_umidade["data"].dt.strftime('%d/%m/%Y') # Converte a data para formato brasileiro
+consulta_umidade["data"] = consulta_umidade["data"].astype(str)
 
-bairros_selecionados_temperatura_mes = []
-for bairro in df_temperatura_por_bairro_e_mes['bairro'].unique():
-    if st.checkbox(bairro, value=True, key=f'temp_mes_{bairro}'):
-        bairros_selecionados_temperatura_mes.append(bairro)
+if not consulta_umidade.empty:
+    chart = alt.Chart(consulta_umidade).mark_bar().encode(
+        x=alt.X("data:N", title="Data"), #O :N garante que o eixo X seja tratado como NOMINAL
+        y=alt.Y("humidade_media:Q", title="Umidade Média"), #O :Q garante que o eixo Y seja tratado como quantitativo
+        tooltip=["data", "humidade_media"]
+    ).properties(
+        width=700,
+        height=400,
+        title=f"Umidade média diária - {bairro}"
+    )
 
-df_filtrado_temperatura_mes = df_temperatura_por_bairro_e_mes[df_temperatura_por_bairro_e_mes['bairro'].isin(bairros_selecionados_temperatura_mes)]
-st.bar_chart(df_filtrado_temperatura_mes, x='mês', y='temperatura_media', color='bairro', stack=False, x_label='Mês', y_label='Temperatura média')
-
-st.title('Humidade média por mês de cada bairro')
-
-bairros_selecionados_humidade_mes = []
-for bairro in df_humidade_por_bairro_e_mes['bairro'].unique():
-    if st.checkbox(bairro, value=True, key=f'hum_mes_{bairro}'):
-        bairros_selecionados_humidade_mes.append(bairro)
-
-df_filtrado_humidade_mes = df_humidade_por_bairro_e_mes[df_humidade_por_bairro_e_mes['bairro'].isin(bairros_selecionados_humidade_mes)]
-st.bar_chart(df_filtrado_humidade_mes, x='mês', y='humidade_media', color='bairro', stack=False, x_label='Mês', y_label='Humidade média')
+    st.altair_chart(chart, use_container_width=True) #container_width=True garante responsividade
+else:
+    st.warning("Nenhum dado encontrado para o período e bairro selecionados.")
