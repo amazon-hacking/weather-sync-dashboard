@@ -18,23 +18,29 @@ engine = create_engine(f"postgresql://{username}:{password}@{host}/{database}")
 
 # MÉDIA DE POLUENTES POR BAIRRO NO PERÍODO INTERIRO 💚💚
 
+import streamlit as st
+import pandas as pd
+import altair as alt
+
+# Consulta para poluentes únicos
 query_poluentes_unicos = "SELECT DISTINCT poluente FROM gold.poluentes_por_bairro"
 poluentes = pd.read_sql(query_poluentes_unicos, engine)
 
+# Widget de seleção de poluente
 poluente_escolhido = st.radio(
     "Qual o poluente que será analisado? (Clique em uma opção)",
     poluentes["poluente"].tolist(),
 )
 
-# Query filtrada direto no banco para o poluente escolhido
+# Consulta filtrada com base no poluente escolhido
 query_poluentes_por_bairro = """
     SELECT bairro, media_valor
     FROM gold.poluentes_por_bairro
     WHERE poluente = %s
 """
-
 df_filtrado = pd.read_sql(query_poluentes_por_bairro, engine, params=(poluente_escolhido,))
 
+# Gráfico com Altair
 chart = (
     alt.Chart(df_filtrado)
     .mark_bar(color="#4caf50")
@@ -50,7 +56,29 @@ chart = (
     )
 )
 
-st.altair_chart(chart, use_container_width=True)
+# Inicializando as chaves de controle no session_state
+if 'mostrar_grafico_poluentes' not in st.session_state:
+    st.session_state.mostrar_grafico_poluentes = True
+
+if 'mostrar_grafico_umi_temp' not in st.session_state:
+    st.session_state.mostrar_grafico_umi_temp = True
+
+def trocar_exibicao_poluentes():
+    st.session_state.mostrar_grafico_poluentes = not st.session_state.mostrar_grafico_poluentes
+
+st.button(
+    label="Trocar Exibição", 
+    help="Exibe o gráfico atual como tabela e vice-versa",
+    key='troca_exibicao_poluentes',
+    on_click=trocar_exibicao_poluentes
+)
+
+if st.session_state.mostrar_grafico_poluentes:
+    st.altair_chart(chart, use_container_width=True)
+    st.write('Exibindo gráfico')
+else:
+    st.dataframe(df_filtrado, hide_index=True)
+    st.write('Exibindo tabela')
 
 # TEMPERATURA E HUMIDADE MEDIAS POR PERÍODO E BAIRRO 💚💚
 
@@ -99,23 +127,36 @@ def checagem_data(consulta):
         consulta["data"] = consulta["data"].dt.strftime('%d/%m/%Y') # Converte a data para formato brasileiro
     consulta["data"] = consulta["data"].astype(str)
     
+def trocar_exibicao_umi_temp():
+    st.session_state.mostrar_grafico_umi_temp = not st.session_state.mostrar_grafico_umi_temp
+
+st.button(
+    label="Trocar Exibição", 
+    help="Exibe o gráfico atual como tabela e vice-versa",
+    key='troca_exibicao_umi_temp',
+    on_click=trocar_exibicao_umi_temp
+)
+
 # TEMPERATURA:
 
 checagem_data(consulta_temp)
 
 if not consulta_temp.empty:
-    chart_temp = alt.Chart(consulta_temp).mark_bar().encode(
-        x=alt.X("data:N", title="Data", axis=alt.Axis(labelAngle=-45)), #O :N garante que o eixo X seja tratado como NOMINAL
-        y=alt.Y("temperatura_media:Q", title="Temperatura Média"),  #O :Q garante que o eixo Y seja tratado como quantitativo
-        color=alt.Color("bairro:N", title="Bairro"),
-        tooltip=["data", "bairro", "temperatura_media"]
-    ).properties(
-        width=max(700, 40 * consulta_temp['data'].nunique()),  # largura proporcional ao número de dias
-        height=400,
-        title="Temperatura média diária por bairro"
-    )
-    
-    st.altair_chart(chart_temp.interactive(), use_container_width=True) #container_width=True garante responsividade
+    if st.session_state.mostrar_grafico_umi_temp:
+        chart_temp = alt.Chart(consulta_temp).mark_bar().encode(
+            x=alt.X("data:N", title="Data", axis=alt.Axis(labelAngle=-45)), #O :N garante que o eixo X seja tratado como NOMINAL
+            y=alt.Y("temperatura_media:Q", title="Temperatura Média"),  #O :Q garante que o eixo Y seja tratado como quantitativo
+            color=alt.Color("bairro:N", title="Bairro"),
+            tooltip=["data", "bairro", "temperatura_media"]
+        ).properties(
+            width=max(700, 40 * consulta_temp['data'].nunique()),  # largura proporcional ao número de dias
+            height=400,
+            title="Temperatura média diária por bairro"
+        )
+        
+        st.altair_chart(chart_temp.interactive(), use_container_width=True) #container_width=True garante responsividade
+    else:
+        st.dataframe(consulta_temp, hide_index=True)
 else:
     st.warning("Nenhum dado encontrado para o período e bairro selecionados.")
     
@@ -124,18 +165,21 @@ else:
 checagem_data(consulta_umidade)
 
 if not consulta_umidade.empty:
-    chart_umidade = alt.Chart(consulta_umidade).mark_bar().encode(
-        x=alt.X("data:N", title="Data", axis=alt.Axis(labelAngle=-45)),
-        y=alt.Y("humidade_media:Q", title="Umidade Média"),
-        color=alt.Color("bairro:N", title="Bairro"),
-        xOffset="bairro:N",
-        tooltip=["data", "bairro", "humidade_media"]
-    ).properties(
-        width=max(700, 40 * consulta_umidade['data'].nunique()),
-        height=400,
-        title="Umidade média diária por bairro"
-    )
+    if st.session_state.mostrar_grafico_umi_temp:    
+        chart_umidade = alt.Chart(consulta_umidade).mark_bar().encode(
+            x=alt.X("data:N", title="Data", axis=alt.Axis(labelAngle=-45)),
+            y=alt.Y("humidade_media:Q", title="Umidade Média"),
+            color=alt.Color("bairro:N", title="Bairro"),
+            xOffset="bairro:N",
+            tooltip=["data", "bairro", "humidade_media"]
+        ).properties(
+            width=max(700, 40 * consulta_umidade['data'].nunique()),
+            height=400,
+            title="Umidade média diária por bairro"
+        )
 
-    st.altair_chart(chart_umidade.interactive(), use_container_width=True)
+        st.altair_chart(chart_umidade.interactive(), use_container_width=True)
+    else:
+        st.dataframe(consulta_umidade)
 else:
     st.warning("Nenhum dado encontrado para o período e bairro selecionados.")
