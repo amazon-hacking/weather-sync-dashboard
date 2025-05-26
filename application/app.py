@@ -104,19 +104,18 @@ def checagem_data(consulta):
 checagem_data(consulta_temp)
 
 if not consulta_temp.empty:
-    chart = alt.Chart(consulta_temp).mark_bar().encode(
-        x=alt.X("data:N", title="Data"), #O :N garante que o eixo X seja tratado como NOMINAL
-        y=alt.Y("temperatura_media:Q", title="Temperatura Média"), #O :Q garante que o eixo Y seja tratado como quantitativo
-        color="bairro:N",
-        column=alt.Column("bairro:N", title="Bairro", spacing=10),
+    chart_temp = alt.Chart(consulta_temp).mark_bar().encode(
+        x=alt.X("data:N", title="Data", axis=alt.Axis(labelAngle=-45)), #O :N garante que o eixo X seja tratado como NOMINAL
+        y=alt.Y("temperatura_media:Q", title="Temperatura Média"),  #O :Q garante que o eixo Y seja tratado como quantitativo
+        color=alt.Color("bairro:N", title="Bairro"),
         tooltip=["data", "bairro", "temperatura_media"]
     ).properties(
-        width=700,
+        width=max(700, 40 * consulta_temp['data'].nunique()),  # largura proporcional ao número de dias
         height=400,
         title="Temperatura média diária por bairro"
     )
-
-    st.altair_chart(chart, use_container_width=True) #container_width=True garante responsividade
+    
+    st.altair_chart(chart_temp.interactive(), use_container_width=True) #container_width=True garante responsividade
 else:
     st.warning("Nenhum dado encontrado para o período e bairro selecionados.")
     
@@ -125,18 +124,18 @@ else:
 checagem_data(consulta_umidade)
 
 if not consulta_umidade.empty:
-    chart = alt.Chart(consulta_umidade).mark_bar().encode(
-        x=alt.X("data:N", title="Data"), #O :N garante que o eixo X seja tratado como NOMINAL
-        y=alt.Y("humidade_media:Q", title="Umidade Média"), #O :Q garante que o eixo Y seja tratado como quantitativo
-        color="bairro:N",
-        column=alt.Column("bairro:N", title="Bairro", spacing=10),
+    chart_umidade = alt.Chart(consulta_umidade).mark_bar().encode(
+        x=alt.X("data:N", title="Data", axis=alt.Axis(labelAngle=-45)),
+        y=alt.Y("humidade_media:Q", title="Umidade Média"),
+        color=alt.Color("bairro:N", title="Bairro"),
+        xOffset="bairro:N",
         tooltip=["data", "bairro", "humidade_media"]
     ).properties(
-        width=700,
+        width=max(700, 40 * consulta_umidade['data'].nunique()),
         height=400,
         title="Umidade média diária por bairro"
     )
 
-    st.altair_chart(chart, use_container_width=True) #container_width=True garante responsividade
+    st.altair_chart(chart_umidade.interactive(), use_container_width=True)
 else:
     st.warning("Nenhum dado encontrado para o período e bairro selecionados.")
