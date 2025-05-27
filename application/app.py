@@ -1,185 +1,59 @@
-# # POLUENTE POR BAIRRO 💚💚
-
+# application/app.py
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import streamlit as st
-import pandas as pd
-from sqlalchemy import create_engine
-import altair as alt
+from application.db import get_engine
+from application.queries import *
+from application.charts import *
+from application.utils import checagem_data
 
-# Conexão para criar uma engine do SQLalchemy
-db_config = st.secrets["tembo_db"]
+engine = get_engine()
 
-username = db_config["username"]
-password = db_config["password"]
-host = db_config["host"]
-port = db_config["port"]
-database = db_config["database"]
+# Poluentes
+poluentes = get_poluentes_unicos(engine)
+poluente_escolhido = st.radio("Escolha um poluente:", poluentes["poluente"].tolist())
+df_poluente = get_poluente_por_bairro(engine, poluente_escolhido)
 
-engine = create_engine(f"postgresql://{username}:{password}@{host}/{database}")
-
-# MÉDIA DE POLUENTES POR BAIRRO NO PERÍODO INTERIRO 💚💚
-
-import streamlit as st
-import pandas as pd
-import altair as alt
-
-# Consulta para poluentes únicos
-query_poluentes_unicos = "SELECT DISTINCT poluente FROM gold.poluentes_por_bairro"
-poluentes = pd.read_sql(query_poluentes_unicos, engine)
-
-# Widget de seleção de poluente
-poluente_escolhido = st.radio(
-    "Qual o poluente que será analisado? (Clique em uma opção)",
-    poluentes["poluente"].tolist(),
-)
-
-# Consulta filtrada com base no poluente escolhido
-query_poluentes_por_bairro = """
-    SELECT bairro, media_valor
-    FROM gold.poluentes_por_bairro
-    WHERE poluente = %s
-"""
-df_filtrado = pd.read_sql(query_poluentes_por_bairro, engine, params=(poluente_escolhido,))
-
-# Gráfico com Altair
-chart = (
-    alt.Chart(df_filtrado)
-    .mark_bar(color="#4caf50")
-    .encode(
-        y=alt.Y('bairro:N', sort='-x', title='Bairro'),  
-        x=alt.X('media_valor:Q', title='Média de Poluentes'),  
-        tooltip=['bairro', 'media_valor']
-    )
-    .properties(
-        title=f"Média de {poluente_escolhido} por bairro",
-        width=700,
-        height=400
-    )
-)
-
-# Inicializando as chaves de controle no session_state
 if 'mostrar_grafico_poluentes' not in st.session_state:
     st.session_state.mostrar_grafico_poluentes = True
+
+st.button("Trocar Exibição", key="troca_exibicao_poluentes",
+          on_click=lambda: st.session_state.update({"mostrar_grafico_poluentes": not st.session_state.mostrar_grafico_poluentes}))
+
+if st.session_state.mostrar_grafico_poluentes:
+    st.altair_chart(chart_poluente(df_poluente, poluente_escolhido), use_container_width=True)
+else:
+    st.dataframe(df_poluente)
+
+# Temperatura e Umidade
+data_ini = st.date_input("Data inicial")
+data_fim = st.date_input("Data final")
+bairros = st.multiselect("Selecione os bairros", get_bairros_disponiveis(engine)['bairro'].tolist())
+
+params = {"data_ini": data_ini, "data_fim": data_fim, "bairros": bairros}
+
+df_temp = checagem_data(get_temperatura(engine, params))
+df_umi = checagem_data(get_umidade(engine, params))
 
 if 'mostrar_grafico_umi_temp' not in st.session_state:
     st.session_state.mostrar_grafico_umi_temp = True
 
-def trocar_exibicao_poluentes():
-    st.session_state.mostrar_grafico_poluentes = not st.session_state.mostrar_grafico_poluentes
+st.button("Trocar Exibição", key="troca_exibicao_umi_temp",
+          on_click=lambda: st.session_state.update({"mostrar_grafico_umi_temp": not st.session_state.mostrar_grafico_umi_temp}))
 
-st.button(
-    label="Trocar Exibição", 
-    help="Exibe o gráfico atual como tabela e vice-versa",
-    key='troca_exibicao_poluentes',
-    on_click=trocar_exibicao_poluentes
-)
-
-if st.session_state.mostrar_grafico_poluentes:
-    st.altair_chart(chart, use_container_width=True)
-    st.write('Exibindo gráfico')
-else:
-    st.dataframe(df_filtrado, hide_index=True)
-    st.write('Exibindo tabela')
-
-# TEMPERATURA E HUMIDADE MEDIAS POR PERÍODO E BAIRRO 💚💚
-
-# Inputs do usuário
-data_ini = st.date_input("Data inicial")
-data_fim = st.date_input("Data final")
-bairros_disponiveis = pd.read_sql("SELECT DISTINCT bairro FROM gold.media_humidade_por_bairro_e_dia", engine)
-bairros = st.multiselect("Selecione os bairros", options=bairros_disponiveis['bairro'].tolist())
-
-# Parâmetros para Queries de Temp. e Umi.
-params = {
-        "data_ini": data_ini,
-        "data_fim": data_fim,
-        "bairros": bairros,
-        }
-
-query_temperatura_periodo = """
-        SELECT data, bairro, temperatura_media
-        FROM gold.media_temperatura_por_bairro_e_dia
-        WHERE data BETWEEN %(data_ini)s AND %(data_fim)s
-          AND bairro = ANY(%(bairros)s)
-        ORDER BY data, bairro
-    """
-
-query_umidade_periodo = """
-    SELECT data, bairro, humidade_media
-    FROM gold.media_humidade_por_bairro_e_dia
-    WHERE data BETWEEN %(data_ini)s AND %(data_fim)s
-        AND bairro = ANY(%(bairros)s)
-    ORDER BY data, bairro
-"""
-
-# Faz as consultas no banco
-consulta_temp = pd.read_sql(query_temperatura_periodo, engine, params=params)
-consulta_umidade = pd.read_sql(query_umidade_periodo, engine, params=params)
-
-# Passando as datas para string
-for df in [consulta_temp, consulta_umidade]:
-    if pd.api.types.is_datetime64_any_dtype(df["data"]):
-        df["data"] = df["data"].dt.strftime('%d/%m/%Y')
-    df["data"] = df["data"].astype(str)
-
-# Garantindo que as datas estão no formato correto
-def checagem_data(consulta):
-    if pd.api.types.is_datetime64_any_dtype(consulta["data"]): # Checa se é datetime
-        consulta["data"] = consulta["data"].dt.strftime('%d/%m/%Y') # Converte a data para formato brasileiro
-    consulta["data"] = consulta["data"].astype(str)
-    
-def trocar_exibicao_umi_temp():
-    st.session_state.mostrar_grafico_umi_temp = not st.session_state.mostrar_grafico_umi_temp
-
-st.button(
-    label="Trocar Exibição", 
-    help="Exibe o gráfico atual como tabela e vice-versa",
-    key='troca_exibicao_umi_temp',
-    on_click=trocar_exibicao_umi_temp
-)
-
-# TEMPERATURA:
-
-checagem_data(consulta_temp)
-
-if not consulta_temp.empty:
+if not df_temp.empty:
     if st.session_state.mostrar_grafico_umi_temp:
-        chart_temp = alt.Chart(consulta_temp).mark_bar().encode(
-            x=alt.X("data:N", title="Data", axis=alt.Axis(labelAngle=-45)), #O :N garante que o eixo X seja tratado como NOMINAL
-            y=alt.Y("temperatura_media:Q", title="Temperatura Média"),  #O :Q garante que o eixo Y seja tratado como quantitativo
-            color=alt.Color("bairro:N", title="Bairro"),
-            tooltip=["data", "bairro", "temperatura_media"]
-        ).properties(
-            width=max(700, 40 * consulta_temp['data'].nunique()),  # largura proporcional ao número de dias
-            height=400,
-            title="Temperatura média diária por bairro"
-        )
-        
-        st.altair_chart(chart_temp.interactive(), use_container_width=True) #container_width=True garante responsividade
+        st.altair_chart(chart_temperatura(df_temp).interactive(), use_container_width=True)
     else:
-        st.dataframe(consulta_temp, hide_index=True)
+        st.dataframe(df_temp)
 else:
-    st.warning("Nenhum dado encontrado para o período e bairro selecionados.")
-    
-# UMIDADE:
+    st.warning("Nenhum dado de temperatura encontrado.")
 
-checagem_data(consulta_umidade)
-
-if not consulta_umidade.empty:
-    if st.session_state.mostrar_grafico_umi_temp:    
-        chart_umidade = alt.Chart(consulta_umidade).mark_bar().encode(
-            x=alt.X("data:N", title="Data", axis=alt.Axis(labelAngle=-45)),
-            y=alt.Y("humidade_media:Q", title="Umidade Média"),
-            color=alt.Color("bairro:N", title="Bairro"),
-            xOffset="bairro:N",
-            tooltip=["data", "bairro", "humidade_media"]
-        ).properties(
-            width=max(700, 40 * consulta_umidade['data'].nunique()),
-            height=400,
-            title="Umidade média diária por bairro"
-        )
-
-        st.altair_chart(chart_umidade.interactive(), use_container_width=True)
+if not df_umi.empty:
+    if st.session_state.mostrar_grafico_umi_temp:
+        st.altair_chart(chart_umidade(df_umi).interactive(), use_container_width=True)
     else:
-        st.dataframe(consulta_umidade)
+        st.dataframe(df_umi)
 else:
-    st.warning("Nenhum dado encontrado para o período e bairro selecionados.")
+    st.warning("Nenhum dado de umidade encontrado.")

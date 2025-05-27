@@ -1,15 +1,15 @@
 CREATE or REPLACE VIEW Poluentes_por_Bairro AS
-SELECT
-	pla.name AS bairro,
-    pol.name AS poluente,
-    AVG(pol.value) AS media_valor
-FROM
-	gold.pollutants_data AS pol
-RIGHT JOIN gold.places AS pla
-	ON pla.id = pol.place_id
-GROUP BY 
-	pla.name, pol.name
-ORDER BY pol.name, pla.name
+	SELECT
+		pla.name AS bairro,
+		pol.name AS poluente,
+		AVG(pol.value) AS media_valor
+	FROM
+		gold.pollutants_data AS pol
+	RIGHT JOIN gold.places AS pla
+		ON pla.id = pol.place_id
+	GROUP BY 
+		pla.name, pol.name
+	ORDER BY pol.name, pla.name
 
 CREATE OR REPLACE VIEW gold.media_temperatura_por_bairro_e_dia AS
 	SELECT
@@ -38,6 +38,3 @@ CREATE OR REPLACE VIEW gold.media_humidade_por_bairro_e_dia AS
 	    bairro, data
 	ORDER BY
 	    bairro ASC, data ASC
-
--- Teste a view
-SELECT * FROM gold.poluentes_por_bairro
