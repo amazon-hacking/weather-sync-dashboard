@@ -78,7 +78,7 @@ footer {visibility: hidden;}
 
 /* Seções responsivas */
 .section-box {
-    background: rgba(255, 255, 255, 0.95);
+    background: #3C3C3C;
     border-radius: 15px;
     padding: clamp(1rem, 3vw, 1.5rem);
     margin: 1rem 0;
@@ -240,7 +240,7 @@ engine = get_engine()
 # 🏭 SEÇÃO POLUENTES
 st.markdown("""
 <div class="section-box">
-    <h2 style="color: #1976d2">🏭 Análise de Poluentes (mouse por cima exibe opção de tela cheia)</h2>
+    <h2 style="color: #FFFFFF">🏭 Análise de Poluentes (mouse por cima exibe opção de tela cheia)</h2>
 </div>
 """, unsafe_allow_html=True)
 
@@ -269,7 +269,7 @@ with col2:
 # 🌡️ SEÇÃO TEMPERATURA E UMIDADE
 st.markdown("""
 <div class="section-box">
-    <h2 style="color: #1976d2; margin-bottom: 1rem;">🌡️ Monitoramento de Temperatura e Umidade</h2>
+    <h2 style="color: #FFFFFF; margin-bottom: 1rem;">🌡️ Monitoramento de Temperatura e Umidade</h2>
 </div>
 """, unsafe_allow_html=True)
 
