@@ -1,7 +1,7 @@
 import altair as alt
 
 def chart_poluente(df, poluente):
-    return alt.Chart(df).mark_bar(color="#4caf50").encode(
+    return alt.Chart(df).mark_bar(color="#b6377a").encode(
         y=alt.Y('bairro:N', sort='-x', title='Bairro'),
         x=alt.X('media_valor:Q', title='Média de Poluentes'),
         tooltip=['bairro', 'media_valor']
@@ -12,11 +12,11 @@ def chart_poluente(df, poluente):
     )
 
 def chart_temperatura(df):
-    # Cria uma lista ordenada das datas únicas para manter a ordem cronológica
+    # Criamos uma lista manter a ordem cronológica
     if not df.empty and 'data_ordenacao' in df.columns:
-        # Ordena pelas datas reais e pega as datas formatadas na ordem correta
-        df_sorted = df.sort_values('data_ordenacao')
-        date_order = df_sorted['data'].drop_duplicates().tolist()
+        # Ordenamos pelas datas reais e as datas formatadas na ordem correta
+        df_ordenado = df.sort_values('data_ordenacao')
+        date_order = df_ordenado['data'].drop_duplicates().tolist()
     else:
         date_order = sorted(df['data'].unique()) if not df.empty else []
     
@@ -26,7 +26,7 @@ def chart_temperatura(df):
                 axis=alt.Axis(labelAngle=-45),
                 sort=date_order),  # Ordena explicitamente pelas datas
         y=alt.Y("temperatura_media:Q", title="Temperatura Média"),
-        color=alt.Color("bairro:N", title="Bairro", scale=alt.Scale(scheme='category10')),
+        color=alt.Color("bairro:N", title="Bairro", scale=alt.Scale(scheme='magma')),
         xOffset="bairro:N",
         tooltip=["data", "bairro", "temperatura_media"]
     ).properties(
@@ -49,7 +49,7 @@ def chart_umidade(df):
                 axis=alt.Axis(labelAngle=-45),
                 sort=date_order),  # Ordena explicitamente pelas datas
         y=alt.Y("humidade_media:Q", title="Umidade Média"),
-        color=alt.Color("bairro:N", title="Bairro", scale=alt.Scale(scheme='category10')),
+        color=alt.Color("bairro:N", title="Bairro", scale=alt.Scale(scheme='magma')),
         xOffset="bairro:N",
         tooltip=["data", "bairro", "humidade_media"],
     ).properties(
